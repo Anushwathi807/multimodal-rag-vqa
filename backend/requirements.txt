@@ -3,3 +3,4 @@ uvicorn
 python-dotenv
 Pillow
 PyMuPDF
+easyocr
