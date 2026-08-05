@@ -4,6 +4,7 @@ from app.ingestion.preprocess import preprocess_image
 from app.ingestion.ocr import extract_text
 from app.ingestion.layout import process_ocr_results
 from app.ingestion.chunking import chunk_lines
+from app.embeddings import embed_chunks
 from PIL import Image
 import io
 
@@ -15,10 +16,6 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
-
-def get_dimensions(image_bytes: bytes):
-    img = Image.open(io.BytesIO(image_bytes))
-    return img.size
 
 def process_single_image(image_bytes: bytes, source_label: str) -> list[dict]:
     """Run the full per-page pipeline: preprocess -> OCR -> layout -> chunk."""
@@ -54,17 +51,23 @@ async def upload_image(file: UploadFile = File(...)):
             page_chunks = process_single_image(page_bytes, source_label)
             all_chunks.extend(page_chunks)
 
+        all_chunks = embed_chunks(all_chunks)
         return {
             "filename": file.filename,
             "type": "pdf",
             "num_pages": len(page_images),
+            "num_chunks": len(all_chunks),
+            "embedding_dimension": len(all_chunks[0]["embedding"]) if all_chunks else 0,
             "chunks": all_chunks
         }
 
     source_label = file.filename
     chunks = process_single_image(contents, source_label)
+    chunks = embed_chunks(chunks)
     return {
         "filename": file.filename,
         "type": "image",
+        "num_chunks": len(chunks),
+        "embedding_dimension": len(chunks[0]["embedding"]) if chunks else 0,
         "chunks": chunks
     }
