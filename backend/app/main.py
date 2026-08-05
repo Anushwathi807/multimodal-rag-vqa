@@ -3,6 +3,7 @@ from app.ingestion.pdf_handler import pdf_to_images
 from app.ingestion.preprocess import preprocess_image
 from app.ingestion.ocr import extract_text
 from app.ingestion.layout import process_ocr_results
+from app.ingestion.chunking import chunk_lines
 from PIL import Image
 import io
 
@@ -18,6 +19,13 @@ def health_check():
 def get_dimensions(image_bytes: bytes):
     img = Image.open(io.BytesIO(image_bytes))
     return img.size
+
+def process_single_image(image_bytes: bytes, source_label: str) -> list[dict]:
+    """Run the full per-page pipeline: preprocess -> OCR -> layout -> chunk."""
+    processed = preprocess_image(image_bytes)
+    ocr_results = extract_text(processed)
+    lines = process_ocr_results(ocr_results)
+    return chunk_lines(lines, source_label)
 
 @app.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
@@ -40,30 +48,23 @@ async def upload_image(file: UploadFile = File(...)):
 
     if file.content_type == "application/pdf":
         page_images = pdf_to_images(contents)
-        first_page = page_images[0]
-        original_size = get_dimensions(first_page)
-        processed = preprocess_image(first_page)
-        processed_size = get_dimensions(processed)
-        ocr_results = extract_text(processed)
-        lines = process_ocr_results(ocr_results)
+        all_chunks = []
+        for page_number, page_bytes in enumerate(page_images, start=1):
+            source_label = f"{file.filename} - page {page_number}"
+            page_chunks = process_single_image(page_bytes, source_label)
+            all_chunks.extend(page_chunks)
+
         return {
             "filename": file.filename,
             "type": "pdf",
             "num_pages": len(page_images),
-            "first_page_original_size": original_size,
-            "first_page_processed_size": processed_size,
-            "lines": lines
+            "chunks": all_chunks
         }
 
-    original_size = get_dimensions(contents)
-    processed = preprocess_image(contents)
-    processed_size = get_dimensions(processed)
-    ocr_results = extract_text(processed)
-    lines = process_ocr_results(ocr_results)
+    source_label = file.filename
+    chunks = process_single_image(contents, source_label)
     return {
         "filename": file.filename,
         "type": "image",
-        "original_size": original_size,
-        "processed_size": processed_size,
-        "lines": lines
+        "chunks": chunks
     }
