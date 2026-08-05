@@ -5,8 +5,7 @@ from app.ingestion.ocr import extract_text
 from app.ingestion.layout import process_ocr_results
 from app.ingestion.chunking import chunk_lines
 from app.embeddings import embed_chunks
-from PIL import Image
-import io
+from app.vector_store import add_chunks, get_index_size
 
 app = FastAPI()
 
@@ -52,22 +51,22 @@ async def upload_image(file: UploadFile = File(...)):
             all_chunks.extend(page_chunks)
 
         all_chunks = embed_chunks(all_chunks)
+        add_chunks(all_chunks)
         return {
             "filename": file.filename,
             "type": "pdf",
             "num_pages": len(page_images),
-            "num_chunks": len(all_chunks),
-            "embedding_dimension": len(all_chunks[0]["embedding"]) if all_chunks else 0,
-            "chunks": all_chunks
+            "num_chunks_added": len(all_chunks),
+            "total_vectors_in_index": get_index_size()
         }
 
     source_label = file.filename
     chunks = process_single_image(contents, source_label)
     chunks = embed_chunks(chunks)
+    add_chunks(chunks)
     return {
         "filename": file.filename,
         "type": "image",
-        "num_chunks": len(chunks),
-        "embedding_dimension": len(chunks[0]["embedding"]) if chunks else 0,
-        "chunks": chunks
+        "num_chunks_added": len(chunks),
+        "total_vectors_in_index": get_index_size()
     }

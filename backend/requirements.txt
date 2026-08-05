@@ -5,3 +5,4 @@ Pillow
 PyMuPDF
 easyocr
 sentence-transformers
+faiss-cpu
