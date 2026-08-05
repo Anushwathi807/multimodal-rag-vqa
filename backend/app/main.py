@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from app.ingestion.pdf_handler import pdf_to_images
 from app.ingestion.preprocess import preprocess_image
 from app.ingestion.ocr import extract_text
+from app.ingestion.layout import process_ocr_results
 from PIL import Image
 import io
 
@@ -44,23 +45,25 @@ async def upload_image(file: UploadFile = File(...)):
         processed = preprocess_image(first_page)
         processed_size = get_dimensions(processed)
         ocr_results = extract_text(processed)
+        lines = process_ocr_results(ocr_results)
         return {
             "filename": file.filename,
             "type": "pdf",
             "num_pages": len(page_images),
             "first_page_original_size": original_size,
             "first_page_processed_size": processed_size,
-            "ocr_results": ocr_results
+            "lines": lines
         }
 
     original_size = get_dimensions(contents)
     processed = preprocess_image(contents)
     processed_size = get_dimensions(processed)
     ocr_results = extract_text(processed)
+    lines = process_ocr_results(ocr_results)
     return {
         "filename": file.filename,
         "type": "image",
         "original_size": original_size,
         "processed_size": processed_size,
-        "ocr_results": ocr_results
+        "lines": lines
     }
