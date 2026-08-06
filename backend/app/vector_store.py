@@ -60,3 +60,32 @@ def add_chunks(chunks: list[dict]):
 def get_index_size() -> int:
     """How many vectors are currently stored."""
     return index.ntotal
+
+MIN_SIMILARITY_THRESHOLD = 0.15
+
+def search(query_vector: list[float], top_k: int = 3) -> list[dict]:
+    """
+    Find the top_k chunks most similar to the given query vector,
+    discarding any below MIN_SIMILARITY_THRESHOLD as not genuinely relevant.
+    Returns a list of chunk dicts (text, source) with a similarity score, ranked best-first.
+    """
+    query_array = np.array([query_vector], dtype="float32")
+    normalized_query = normalize(query_array[0])
+    normalized_query = np.array([normalized_query], dtype="float32")
+
+    scores, indices = index.search(normalized_query, top_k)
+
+    results = []
+    for score, idx in zip(scores[0], indices[0]):
+        if idx == -1:
+            continue
+        if score < MIN_SIMILARITY_THRESHOLD:
+            continue
+        chunk = metadata_store[idx]
+        results.append({
+            "text": chunk["text"],
+            "source": chunk["source"],
+            "similarity_score": float(score)
+        })
+
+    return results

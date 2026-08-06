@@ -5,7 +5,8 @@ from app.ingestion.ocr import extract_text
 from app.ingestion.layout import process_ocr_results
 from app.ingestion.chunking import chunk_lines
 from app.embeddings import embed_chunks
-from app.vector_store import add_chunks, get_index_size
+from app.vector_store import add_chunks, get_index_size, search
+from app.embeddings import embed_text
 
 app = FastAPI()
 
@@ -69,4 +70,13 @@ async def upload_image(file: UploadFile = File(...)):
         "type": "image",
         "num_chunks_added": len(chunks),
         "total_vectors_in_index": get_index_size()
+    }
+
+@app.post("/ask")
+async def ask_question(question: str):
+    query_vector = embed_text(question)
+    results = search(query_vector, top_k=3)
+    return {
+        "question": question,
+        "results": results
     }
